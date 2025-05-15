@@ -1,0 +1,28 @@
+{
+  "categories": [
+    {
+      "id": 1,
+      "name": "Sanduíches",
+      "description": "Deliciosos sanduíches feitos na hora",
+      "imageUrl": "/images/categories/sandwiches.jpg"
+    },
+    {
+      "id": 2,
+      "name": "Bebidas",
+      "description": "Refrigerantes, sucos e outras bebidas",
+      "imageUrl": "/images/categories/drinks.jpg"
+    },
+    {
+      "id": 3,
+      "name": "Combos",
+      "description": "Combos com descontos especiais",
+      "imageUrl": "/images/categories/combos.jpg"
+    },
+    {
+      "id": 4,
+      "name": "Sobremesas",
+      "description": "Deliciosas sobremesas para adoçar seu dia",
+      "imageUrl": "/images/categories/desserts.jpg"
+    }
+  ]
+} 

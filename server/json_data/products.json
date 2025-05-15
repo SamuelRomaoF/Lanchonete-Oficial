@@ -1,0 +1,17 @@
+{
+  "products": [
+    {
+      "id": 1,
+      "name": "filho do ababa",
+      "description": "delicioso ababa",
+      "price": 15,
+      "imageUrl": "",
+      "isFeatured": true,
+      "isPromotion": false,
+      "categoryId": 1,
+      "available": true,
+      "createdAt": "2025-05-15T19:29:08.720Z",
+      "oldPrice": 20
+    }
+  ]
+}

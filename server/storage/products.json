@@ -1,0 +1,65 @@
+{
+  "products": [
+    {
+      "id": 1,
+      "name": "X-Burger",
+      "description": "Pão, hambúrguer, queijo, alface, tomate e maionese",
+      "price": 15.90,
+      "imageUrl": "/images/products/x-burger.jpg",
+      "isFeatured": true,
+      "isPromotion": false,
+      "categoryId": 1,
+      "available": true,
+      "createdAt": "2023-09-01T00:00:00.000Z"
+    },
+    {
+      "id": 2,
+      "name": "X-Bacon",
+      "description": "Pão, hambúrguer, bacon, queijo, alface, tomate e maionese",
+      "price": 18.90,
+      "imageUrl": "/images/products/x-bacon.jpg",
+      "isFeatured": true,
+      "isPromotion": false,
+      "categoryId": 1,
+      "available": true,
+      "createdAt": "2023-09-01T00:00:00.000Z"
+    },
+    {
+      "id": 3,
+      "name": "Coca-Cola 350ml",
+      "description": "Refrigerante Coca-Cola lata 350ml",
+      "price": 5.00,
+      "imageUrl": "/images/products/coca-cola.jpg",
+      "isFeatured": false,
+      "isPromotion": false,
+      "categoryId": 2,
+      "available": true,
+      "createdAt": "2023-09-01T00:00:00.000Z"
+    },
+    {
+      "id": 4,
+      "name": "Combo X-Burger",
+      "description": "X-Burger + Batata Frita + Refrigerante",
+      "price": 25.90,
+      "oldPrice": 29.90,
+      "imageUrl": "/images/products/combo-x-burger.jpg",
+      "isFeatured": true,
+      "isPromotion": true,
+      "categoryId": 3,
+      "available": true,
+      "createdAt": "2023-09-01T00:00:00.000Z"
+    },
+    {
+      "id": 5,
+      "name": "Pudim",
+      "description": "Pudim de leite condensado",
+      "price": 8.00,
+      "imageUrl": "/images/products/pudim.jpg",
+      "isFeatured": false,
+      "isPromotion": false,
+      "categoryId": 4,
+      "available": true,
+      "createdAt": "2023-09-01T00:00:00.000Z"
+    }
+  ]
+} 
