@@ -1,8 +1,11 @@
 const axios = require('axios');
-const { getGithubFileUrl, getGithubHeaders } = require('./github-config');
+const { getGithubFileUrl, getGithubHeaders, initializeFileIfNotExists } = require('./github-config');
 
 exports.handler = async function(event, context) {
   try {
+    // Inicializar o arquivo se não existir
+    await initializeFileIfNotExists('data/categories.json', []);
+    
     // Buscar categorias do GitHub
     const response = await axios.get(
       getGithubFileUrl('data/categories.json'),

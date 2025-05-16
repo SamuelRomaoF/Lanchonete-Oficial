@@ -1,9 +1,12 @@
 const axios = require('axios');
-const { getGithubFileUrl, getGithubHeaders } = require('./github-config');
+const { getGithubFileUrl, getGithubHeaders, initializeFileIfNotExists } = require('./github-config');
 
 exports.handler = async function(event, context) {
   console.log('Iniciando getProducts...');
   try {
+    // Inicializar o arquivo se não existir
+    await initializeFileIfNotExists('data/products.json', []);
+    
     // Buscar produtos do GitHub
     console.log('Solicitando produtos do GitHub...');
     
