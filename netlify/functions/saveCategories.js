@@ -15,8 +15,8 @@ exports.handler = async function(event, context) {
     };
   }
 
-  // Verificar método HTTP
-  if (!['POST', 'PUT', 'DELETE'].includes(event.httpMethod)) {
+  // Adicionar GET aos métodos permitidos
+  if (!['GET', 'POST', 'PUT', 'DELETE'].includes(event.httpMethod)) {
     return { 
       statusCode: 405,
       headers: {
@@ -63,6 +63,19 @@ exports.handler = async function(event, context) {
         console.error('Erro ao buscar categorias existentes:', error);
         throw error;
       }
+    }
+    
+    // Se a requisição for GET, retornar as categorias existentes
+    if (event.httpMethod === 'GET') {
+      console.log('Retornando lista de categorias:', existingCategories.length);
+      return {
+        statusCode: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        },
+        body: JSON.stringify(existingCategories)
+      };
     }
     
     let updatedCategories = [...existingCategories];

@@ -16,18 +16,8 @@ function getNetlifyFunctionUrl(url: string): string {
   
   // Mapeamento específico para cada endpoint
   if (url.startsWith('/api/categories')) {
-    // Verificar se é POST, PUT ou DELETE para categorias
-    if (url === '/api/categories') {
-      return '/.netlify/functions/saveCategories';
-    }
-    
-    // Se for operação em um ID específico (PUT, DELETE)
-    if (url.match(/\/api\/categories\/\d+/)) {
-      return '/.netlify/functions/saveCategories';
-    }
-    
-    // Para GET de categorias
-    return '/.netlify/functions/getCategories';
+    // Todas as operações de categorias usam a mesma função
+    return '/.netlify/functions/saveCategories';
   }
   
   if (url.startsWith('/api/products')) {
