@@ -9,6 +9,7 @@ import Footer from "@/components/Footer";
 import Home from "@/pages/Home";
 import ProductsList from "@/pages/ProductsList";
 import OrderHistory from "@/pages/OrderHistory";
+import About from "@/pages/About";
 import Dashboard from "@/pages/admin/Dashboard";
 import ProductManagement from "@/pages/admin/ProductManagement";
 import CategoryManagement from "@/pages/admin/CategoryManagement";
@@ -24,6 +25,8 @@ function Router() {
       <Route path="/produtos" component={ProductsList} />
       <Route path="/produtos/:categoria" component={ProductsList} />
       <Route path="/pedidos" component={OrderHistory} />
+      <Route path="/cardapio" component={ProductsList} />
+      <Route path="/sobre" component={About} />
       
       {/* Páginas de admin */}
       <Route path="/admin" component={Dashboard} />

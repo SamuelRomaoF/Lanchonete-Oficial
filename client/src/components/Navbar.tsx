@@ -3,21 +3,15 @@ import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import LoginForm from "@/components/LoginForm";
-import CartSidebar from "@/components/CartSidebar";
 import { useAuth } from "@/context/AuthContext";
-import { useCart } from "@/context/CartContext";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Menu, Search, ShoppingCart, X } from "lucide-react";
+import { Menu, Search, X } from "lucide-react";
 
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [location, navigate] = useLocation();
   const { user, logout } = useAuth();
-  const { cart, openCart } = useCart();
   
-  const cartItemCount = cart.reduce((total, item) => total + item.quantity, 0);
-  
-  const [cartOpen, setCartOpen] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
   
   // Fechar o menu ao mudar de página
@@ -86,9 +80,6 @@ const Navbar = () => {
           <Link href="/sobre" className="hover:text-primary transition-colors py-2 px-3">
             Sobre
           </Link>
-          <Link href="/contato" className="hover:text-primary transition-colors py-2 px-3">
-            Contato
-          </Link>
         </div>
       );
     }
@@ -140,9 +131,6 @@ const Navbar = () => {
           <Link href="/sobre" className="hover:bg-gray-100 block px-3 py-2 rounded-md text-base font-medium">
             Sobre
           </Link>
-          <Link href="/contato" className="hover:bg-gray-100 block px-3 py-2 rounded-md text-base font-medium">
-            Contato
-          </Link>
         </>
       );
     }
@@ -171,18 +159,6 @@ const Navbar = () => {
                   >
                     <Search className="h-6 w-6" />
                   </button>
-                  <button
-                    className="hover:text-primary transition-colors relative"
-                    aria-label="Cart"
-                    onClick={() => setCartOpen(true)}
-                  >
-                    <ShoppingCart className="h-6 w-6" />
-                    {cartItemCount > 0 && (
-                      <span className="absolute -top-2 -right-2 bg-primary text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">
-                        {cartItemCount}
-                      </span>
-                    )}
-                  </button>
                 </>
               ) : null}
               
@@ -205,21 +181,6 @@ const Navbar = () => {
             
             {/* Mobile menu button */}
             <div className="flex items-center md:hidden">
-              {!isAdminPage && !isLoginPage && (
-                <button
-                  className="mr-2 hover:text-primary transition-colors relative"
-                  aria-label="Cart"
-                  onClick={() => setCartOpen(true)}
-                >
-                  <ShoppingCart className="h-6 w-6" />
-                  {cartItemCount > 0 && (
-                    <span className="absolute -top-2 -right-2 bg-primary text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">
-                      {cartItemCount}
-                    </span>
-                  )}
-                </button>
-              )}
-              
               <button
                 className="inline-flex items-center justify-center p-2 rounded-md hover:text-primary transition-colors"
                 aria-expanded={isMenuOpen}
@@ -259,12 +220,6 @@ const Navbar = () => {
           </div>
         )}
       </nav>
-      
-      {/* Cart Sidebar */}
-      <CartSidebar 
-        isOpen={cartOpen} 
-        onClose={() => setCartOpen(false)} 
-      />
       
       {/* Login Modal */}
       <Dialog open={loginOpen} onOpenChange={setLoginOpen}>
