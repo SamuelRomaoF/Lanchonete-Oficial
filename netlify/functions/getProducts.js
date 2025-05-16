@@ -4,7 +4,13 @@ const { getGithubFileUrl, getGithubHeaders } = require('./github-config');
 exports.handler = async function(event, context) {
   console.log('==== INICIANDO FUNÇÃO getProducts ====');
   console.log('Token GitHub existe:', !!process.env.GITHUB_TOKEN);
-  console.log('Repositório configurado:', process.env.GITHUB_REPO || 'SamuelRomaoF/lanchonete-dados');
+  console.log('Query params:', event.queryStringParameters);
+  console.log('Path:', event.path);
+  
+  // Verificar se a requisição é para produtos em destaque ou promoções
+  const isFeatured = event.path.includes('featured') || event.queryStringParameters?.featured === 'true';
+  const isPromotion = event.path.includes('promotions') || event.queryStringParameters?.promotion === 'true';
+  const categoryId = event.queryStringParameters?.categoryId;
   
   // Dados fallback para garantir que o site funcione
   const produtosFallback = [
@@ -76,20 +82,73 @@ exports.handler = async function(event, context) {
     const url = getGithubFileUrl('data/products.json');
     console.log('URL:', url);
     
-    // Usar fallback enquanto debugamos
-    console.log('Retornando dados fallback para garantir funcionamento');
-    return {
-      statusCode: 200,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        'Cache-Control': 'no-cache'
-      },
-      body: JSON.stringify(produtosFallback)
-    };
+    try {
+      // Obter todos os produtos do GitHub
+      const response = await axios.get(url, {
+        headers: getGithubHeaders()
+      });
+      
+      let products = response.data;
+      
+      // Aplicar filtros se necessário
+      if (isFeatured) {
+        products = products.filter(product => product.isFeatured);
+        console.log(`Filtrando produtos em destaque. Encontrados: ${products.length}`);
+      } else if (isPromotion) {
+        products = products.filter(product => product.isPromotion);
+        console.log(`Filtrando produtos em promoção. Encontrados: ${products.length}`);
+      } else if (categoryId) {
+        products = products.filter(product => product.categoryId === parseInt(categoryId));
+        console.log(`Filtrando produtos por categoria ${categoryId}. Encontrados: ${products.length}`);
+      }
+      
+      return {
+        statusCode: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'Cache-Control': 'no-cache'
+        },
+        body: JSON.stringify(products)
+      };
+    } catch (githubError) {
+      console.error('Erro ao buscar produtos do GitHub:', githubError.message);
+      
+      // Aplicar mesmo filtro aos dados fallback
+      let products = produtosFallback;
+      
+      if (isFeatured) {
+        products = products.filter(product => product.isFeatured);
+      } else if (isPromotion) {
+        products = products.filter(product => product.isPromotion);
+      } else if (categoryId) {
+        products = products.filter(product => product.categoryId === parseInt(categoryId));
+      }
+      
+      // Retornar dados fallback
+      return {
+        statusCode: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'Cache-Control': 'no-cache'
+        },
+        body: JSON.stringify(products)
+      };
+    }
   } catch (error) {
     console.error('Erro na função getProducts:', error);
-    console.log('Retornando dados fallback após erro');
+    
+    // Filtrar dados fallback
+    let products = produtosFallback;
+    
+    if (isFeatured) {
+      products = products.filter(product => product.isFeatured);
+    } else if (isPromotion) {
+      products = products.filter(product => product.isPromotion);
+    } else if (categoryId) {
+      products = products.filter(product => product.categoryId === parseInt(categoryId));
+    }
     
     return {
       statusCode: 200,
@@ -98,7 +157,7 @@ exports.handler = async function(event, context) {
         'Access-Control-Allow-Origin': '*',
         'Cache-Control': 'no-cache'
       },
-      body: JSON.stringify(produtosFallback)
+      body: JSON.stringify(products)
     };
   }
 }; 

@@ -14,7 +14,24 @@ function getNetlifyFunctionUrl(url: string): string {
     return url;
   }
   
-  // Substituir /api/ por /.netlify/functions/
+  // Mapeamento específico para cada endpoint
+  if (url.startsWith('/api/categories')) {
+    return '/.netlify/functions/getCategories';
+  }
+  
+  if (url.startsWith('/api/products')) {
+    return '/.netlify/functions/getProducts';
+  }
+  
+  if (url.includes('/api/products/featured')) {
+    return '/.netlify/functions/getProducts';
+  }
+  
+  if (url.includes('/api/products/promotions')) {
+    return '/.netlify/functions/getProducts';
+  }
+  
+  // Para outros endpoints, fazer substituição padrão
   return url.replace('/api/', '/.netlify/functions/');
 }
 
