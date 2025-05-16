@@ -16,6 +16,17 @@ function getNetlifyFunctionUrl(url: string): string {
   
   // Mapeamento específico para cada endpoint
   if (url.startsWith('/api/categories')) {
+    // Verificar se é POST, PUT ou DELETE para categorias
+    if (url === '/api/categories') {
+      return '/.netlify/functions/saveCategories';
+    }
+    
+    // Se for operação em um ID específico (PUT, DELETE)
+    if (url.match(/\/api\/categories\/\d+/)) {
+      return '/.netlify/functions/saveCategories';
+    }
+    
+    // Para GET de categorias
     return '/.netlify/functions/getCategories';
   }
   
@@ -52,6 +63,8 @@ export async function apiRequest(
   // Converter URL para usar funções Netlify
   const netlifyUrl = getNetlifyFunctionUrl(url);
   
+  console.log(`Enviando requisição ${method} para ${netlifyUrl}`, data);
+  
   try {
     const res = await fetch(netlifyUrl, {
       method,
@@ -60,6 +73,8 @@ export async function apiRequest(
       cache: 'no-cache' // Evitar problemas de cache
     });
 
+    console.log(`Resposta da requisição ${method} para ${netlifyUrl}:`, res.status);
+    
     await throwIfResNotOk(res);
     return res;
   } catch (error) {

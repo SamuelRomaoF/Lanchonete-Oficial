@@ -62,10 +62,15 @@ const CategoryManagement = () => {
   
   // Mutation para criar categoria
   const createCategoryMutation = useMutation({
-    mutationFn: (data: CategoryFormValues) => {
-      return apiRequest("POST", "/api/categories", data);
+    mutationFn: async (data: CategoryFormValues) => {
+      console.log("Enviando dados para criar categoria:", data);
+      const response = await apiRequest("POST", "/api/categories", data);
+      const result = await response.json();
+      console.log("Resposta da criação de categoria:", result);
+      return result;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log("Mutation concluída com sucesso:", data);
       queryClient.invalidateQueries({ queryKey: ['/api/categories'] });
       toast({
         title: "Categoria criada",
@@ -86,10 +91,15 @@ const CategoryManagement = () => {
   
   // Mutation para atualizar categoria
   const updateCategoryMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: CategoryFormValues }) => {
-      return apiRequest("PUT", `/api/categories/${id}`, data);
+    mutationFn: async ({ id, data }: { id: number; data: CategoryFormValues }) => {
+      console.log(`Atualizando categoria ${id}:`, data);
+      const response = await apiRequest("PUT", `/api/categories/${id}`, data);
+      const result = await response.json();
+      console.log("Resposta da atualização de categoria:", result);
+      return result;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log("Atualização concluída com sucesso:", data);
       queryClient.invalidateQueries({ queryKey: ['/api/categories'] });
       toast({
         title: "Categoria atualizada",
@@ -110,10 +120,15 @@ const CategoryManagement = () => {
   
   // Mutation para excluir categoria
   const deleteCategoryMutation = useMutation({
-    mutationFn: (id: number) => {
-      return apiRequest("DELETE", `/api/categories/${id}`, {});
+    mutationFn: async (id: number) => {
+      console.log(`Excluindo categoria ${id}`);
+      const response = await apiRequest("DELETE", `/api/categories/${id}`, {});
+      const result = await response.json();
+      console.log("Resposta da exclusão de categoria:", result);
+      return result;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log("Exclusão concluída com sucesso:", data);
       queryClient.invalidateQueries({ queryKey: ['/api/categories'] });
       toast({
         title: "Categoria excluída",
@@ -140,17 +155,20 @@ const CategoryManagement = () => {
   
   // Funções de gerenciamento de categorias
   const handleCreateCategory = (data: CategoryFormValues) => {
+    console.log("Iniciando criação de categoria:", data);
     createCategoryMutation.mutate(data);
   };
   
   const handleEditCategory = (data: CategoryFormValues) => {
     if (currentCategory) {
+      console.log("Iniciando edição de categoria:", currentCategory.id, data);
       updateCategoryMutation.mutate({ id: currentCategory.id, data });
     }
   };
   
   const handleDeleteCategory = () => {
     if (currentCategory) {
+      console.log("Iniciando exclusão de categoria:", currentCategory.id);
       deleteCategoryMutation.mutate(currentCategory.id);
     }
   };
