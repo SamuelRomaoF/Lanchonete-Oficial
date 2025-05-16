@@ -32,6 +32,7 @@ import {
   Legend
 } from "recharts";
 import * as XLSX from 'xlsx';
+import { useCategories } from '../../hooks/useCategories';
 
 interface DashboardStats {
   productCount: number;
@@ -63,6 +64,7 @@ const Dashboard = () => {
   const [totalVendas, setTotalVendas] = useState(0);
   const [excelUploaded, setExcelUploaded] = useState(false);
   const { toast } = useToast();
+  const { categories } = useCategories();
   
   // Verificar se o usuário é administrador
   useEffect(() => {
@@ -128,21 +130,15 @@ const Dashboard = () => {
   
   // Função para obter categorias reais do sistema para o gráfico de pizza
   useEffect(() => {
-    // Buscar categorias do sistema
-    fetch('/api/categories')
-      .then(res => res.json())
-      .then(categories => {
-        if (categories && categories.length > 0) {
-          // Criar gráfico com categorias reais com valores padrão
-          const categoryData = categories.map((cat: any, index: number) => ({
-            name: cat.name,
-            value: 100 / categories.length // Distribuição igual
-          }));
-          setPieData(categoryData);
-        }
-      })
-      .catch(err => console.error('Erro ao carregar categorias:', err));
-  }, []);
+    if (categories && categories.length > 0) {
+      // Criar gráfico com categorias reais com valores padrão
+      const categoryData = categories.map((cat, index) => ({
+        name: cat.name,
+        value: 100 / categories.length // Distribuição igual
+      }));
+      setPieData(categoryData);
+    }
+  }, [categories]);
   
   // Função para criar e baixar um exemplo de planilha
   const downloadExcelExample = () => {

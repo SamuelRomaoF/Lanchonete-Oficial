@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect, ReactNode } from "react
 import { apiRequest } from "@/lib/queryClient";
 
 interface User {
-  id: number;
+  id: string;
   name: string;
   email: string;
   type: 'cliente' | 'admin';
@@ -32,19 +32,33 @@ export function AuthProvider({ children }: AuthProviderProps) {
   
   const checkAuth = async () => {
     try {
-      const response = await fetch("/api/auth/me", {
-        credentials: "include",
+      const token = localStorage.getItem('auth_token');
+      
+      if (!token) {
+        setUser(null);
+        setLoading(false);
+        return;
+      }
+      
+      const response = await fetch("/.netlify/functions/me", {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
       });
       
       if (response.ok) {
         const data = await response.json();
         console.log("Dados do usuário recuperados:", data);
-        setUser(data.user);
+        setUser(data);
       } else {
-        console.log("Usuário não autenticado");
+        // Token inválido ou expirado
+        localStorage.removeItem('auth_token');
+        setUser(null);
       }
     } catch (error) {
       console.error("Erro ao verificar autenticação:", error);
+      localStorage.removeItem('auth_token');
+      setUser(null);
     } finally {
       setLoading(false);
     }
@@ -56,23 +70,26 @@ export function AuthProvider({ children }: AuthProviderProps) {
   
   const login = async (email: string, password: string) => {
     try {
-      const response = await fetch("/api/auth/login", {
+      const response = await fetch("/.netlify/functions/login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ email, password }),
-        credentials: "include",
       });
       
       if (!response.ok) {
         const errorData = await response.json();
         console.error("Erro no login:", errorData);
-        throw new Error(errorData.message || "Erro ao fazer login");
+        throw new Error(errorData.error || "Erro ao fazer login");
       }
       
       const data = await response.json();
       console.log("Login bem-sucedido:", data);
+      
+      // Armazenar token no localStorage
+      localStorage.setItem('auth_token', data.token);
+      
       setUser(data.user);
       return data.user;
     } catch (error) {
@@ -82,7 +99,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
   
   const logout = async () => {
-    await apiRequest("POST", "/api/auth/logout", {});
+    // Limpar token do localStorage
+    localStorage.removeItem('auth_token');
     setUser(null);
   };
   

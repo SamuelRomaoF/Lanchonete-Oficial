@@ -1,0 +1,10 @@
+[
+  {
+    "id": "1",
+    "name": "Administrador",
+    "email": "admin@lanchonete.com",
+    "password": "$2a$10$Nn/CIW0z1YMJJlEr6QE0AOznU9XbRqP3EDZPBQvl/4BMeFEUPXpcS",
+    "type": "admin",
+    "createdAt": "2023-05-16T00:00:00.000Z"
+  }
+] 

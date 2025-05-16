@@ -7,16 +7,38 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
+// Função para prefixar URLs de API com o prefixo Netlify Functions
+function getNetlifyFunctionUrl(url: string): string {
+  // Se a URL já começa com /.netlify, não modificar
+  if (url.startsWith('/.netlify')) {
+    return url;
+  }
+  
+  // Substituir /api/ por /.netlify/functions/
+  return url.replace('/api/', '/.netlify/functions/');
+}
+
 export async function apiRequest(
   method: string,
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
-  const res = await fetch(url, {
+  // Obter token de autenticação do localStorage
+  const token = localStorage.getItem('auth_token');
+  
+  // Preparar cabeçalhos com autenticação se o token existir
+  const headers: Record<string, string> = {
+    ...(data ? { "Content-Type": "application/json" } : {}),
+    ...(token ? { "Authorization": `Bearer ${token}` } : {})
+  };
+  
+  // Converter URL para usar funções Netlify
+  const netlifyUrl = getNetlifyFunctionUrl(url);
+  
+  const res = await fetch(netlifyUrl, {
     method,
-    headers: data ? { "Content-Type": "application/json" } : {},
+    headers,
     body: data ? JSON.stringify(data) : undefined,
-    credentials: "include",
   });
 
   await throwIfResNotOk(res);
@@ -29,8 +51,20 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    const res = await fetch(queryKey[0] as string, {
-      credentials: "include",
+    // Obter token de autenticação do localStorage
+    const token = localStorage.getItem('auth_token');
+    
+    // Preparar cabeçalhos com autenticação se o token existir
+    const headers: Record<string, string> = {
+      ...(token ? { "Authorization": `Bearer ${token}` } : {})
+    };
+    
+    // Converter URL para usar funções Netlify
+    const url = queryKey[0] as string;
+    const netlifyUrl = getNetlifyFunctionUrl(url);
+    
+    const res = await fetch(netlifyUrl, {
+      headers
     });
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {
