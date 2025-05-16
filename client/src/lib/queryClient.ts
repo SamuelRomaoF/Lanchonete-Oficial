@@ -35,14 +35,20 @@ export async function apiRequest(
   // Converter URL para usar funções Netlify
   const netlifyUrl = getNetlifyFunctionUrl(url);
   
-  const res = await fetch(netlifyUrl, {
-    method,
-    headers,
-    body: data ? JSON.stringify(data) : undefined,
-  });
+  try {
+    const res = await fetch(netlifyUrl, {
+      method,
+      headers,
+      body: data ? JSON.stringify(data) : undefined,
+      cache: 'no-cache' // Evitar problemas de cache
+    });
 
-  await throwIfResNotOk(res);
-  return res;
+    await throwIfResNotOk(res);
+    return res;
+  } catch (error) {
+    console.error(`Erro na requisição ${method} para ${netlifyUrl}:`, error);
+    throw error;
+  }
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";
@@ -56,6 +62,8 @@ export const getQueryFn: <T>(options: {
     
     // Preparar cabeçalhos com autenticação se o token existir
     const headers: Record<string, string> = {
+      'Cache-Control': 'no-cache, no-store, max-age=0',
+      'Pragma': 'no-cache',
       ...(token ? { "Authorization": `Bearer ${token}` } : {})
     };
     
@@ -63,26 +71,51 @@ export const getQueryFn: <T>(options: {
     const url = queryKey[0] as string;
     const netlifyUrl = getNetlifyFunctionUrl(url);
     
-    const res = await fetch(netlifyUrl, {
-      headers
-    });
+    try {
+      console.log(`Iniciando requisição para ${netlifyUrl}`);
+      
+      const res = await fetch(netlifyUrl, {
+        headers,
+        cache: 'no-cache' // Desabilitar cache
+      });
 
-    if (unauthorizedBehavior === "returnNull" && res.status === 401) {
+      if (unauthorizedBehavior === "returnNull" && res.status === 401) {
+        return null;
+      }
+
+      if (!res.ok) {
+        // Se não ok, tentar obter mensagem de erro mas não lançar exceção
+        const errorMessage = await res.text();
+        console.error(`Erro na resposta (${res.status}): ${errorMessage}`);
+        
+        // Retornar um valor vazio em vez de lançar erro
+        // Isso evita tela de erro para o usuário
+        if (url.includes('categories')) return [];
+        if (url.includes('products')) return [];
+        return null;
+      }
+      
+      const data = await res.json();
+      console.log(`Dados recebidos de ${netlifyUrl}:`, data);
+      return data;
+    } catch (error) {
+      console.error(`Erro ao buscar ${netlifyUrl}:`, error);
+      
+      // Retornar dados vazios em vez de lançar erro
+      if (url.includes('categories')) return [];
+      if (url.includes('products')) return [];
       return null;
     }
-
-    await throwIfResNotOk(res);
-    return await res.json();
   };
 
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      queryFn: getQueryFn({ on401: "throw" }),
+      queryFn: getQueryFn({ on401: "returnNull" }), // Mudança para returnNull
       refetchInterval: false,
       refetchOnWindowFocus: false,
       staleTime: Infinity,
-      retry: false,
+      retry: 1, // Permitir uma tentativa de retry
     },
     mutations: {
       retry: false,
