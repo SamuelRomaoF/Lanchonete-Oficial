@@ -45,15 +45,12 @@ exports.handler = async function(event, context) {
       payload.sha = sha;
     }
     
-    // Atualizar o arquivo
+    // Atualizar o arquivo usando os cabeçalhos padrão
     await axios.put(
       getGithubFileUrl('data/products.json'),
       payload,
       {
-        headers: {
-          'Authorization': `token ${process.env.GITHUB_TOKEN}`,
-          'Content-Type': 'application/json'
-        }
+        headers: getGithubHeaders(false)
       }
     );
     

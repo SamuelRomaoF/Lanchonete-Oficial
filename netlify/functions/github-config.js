@@ -19,9 +19,7 @@ console.log(`Token GitHub existe: ${!!process.env.GITHUB_TOKEN}`);
  * @returns {string} URL completa para a API do GitHub
  */
 function getGithubFileUrl(path) {
-  const url = `${baseApiUrl}/${path}`;
-  console.log(`Acessando URL: ${url}`);
-  return url;
+  return `${baseApiUrl}/${path}`;
 }
 
 /**
@@ -30,11 +28,15 @@ function getGithubFileUrl(path) {
  * @returns {Object} Objeto com os cabeçalhos
  */
 function getGithubHeaders(raw = true) {
-  // Usando formato de autenticação mais recente (Bearer em vez de token)
+  const token = process.env.GITHUB_TOKEN;
+  
+  if (!token) {
+    console.error('AVISO: Token GitHub não está definido nas variáveis de ambiente');
+  }
+  
   return {
-    'Authorization': `Bearer ${process.env.GITHUB_TOKEN}`,
-    'Accept': raw ? 'application/vnd.github.v3.raw' : 'application/vnd.github+json',
-    'X-GitHub-Api-Version': '2022-11-28',
+    'Authorization': `Bearer ${token}`,
+    'Accept': raw ? 'application/vnd.github.raw' : 'application/json',
     'User-Agent': 'Netlify-Function'
   };
 }
