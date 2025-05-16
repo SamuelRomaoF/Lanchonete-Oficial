@@ -7,33 +7,52 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
-// Função para prefixar URLs de API com o prefixo Netlify Functions
-function getNetlifyFunctionUrl(url: string): string {
-  // Se a URL já começa com /.netlify, não modificar
-  if (url.startsWith('/.netlify')) {
-    return url;
-  }
-  
-  // Mapeamento específico para cada endpoint
+// Detectar ambiente automaticamente
+const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+
+// URL base para o json-server em desenvolvimento ou API mockada em produção
+const JSON_SERVER_URL = isLocalhost 
+  ? "http://localhost:3001" 
+  : "https://my-json-server.typicode.com/SamuelRomaoF/lanchonete-dados";
+
+// Função para mapear URLs da API para o json-server
+function getJsonServerUrl(url: string): string {
+  // Mapear URLs para o json-server
   if (url.startsWith('/api/categories')) {
-    // Todas as operações de categorias usam a mesma função
-    return '/.netlify/functions/saveCategories';
+    // Para operações específicas com ID
+    if (url.match(/\/api\/categories\/\d+/)) {
+      const id = url.split('/').pop();
+      return `${JSON_SERVER_URL}/categories/${id}`;
+    }
+    // Para listar todas as categorias
+    return `${JSON_SERVER_URL}/categories`;
   }
   
   if (url.startsWith('/api/products')) {
-    return '/.netlify/functions/getProducts';
+    // Para produtos em destaque
+    if (url.includes('/featured')) {
+      return `${JSON_SERVER_URL}/products?isFeatured=true`;
+    }
+    // Para produtos em promoção
+    if (url.includes('/promotions')) {
+      return `${JSON_SERVER_URL}/products?isPromotion=true`;
+    }
+    // Para produtos por categoria
+    if (url.includes('categoryId=')) {
+      const categoryId = new URL(url, 'http://localhost').searchParams.get('categoryId');
+      return `${JSON_SERVER_URL}/products?categoryId=${categoryId}`;
+    }
+    // Para um produto específico
+    if (url.match(/\/api\/products\/\d+/)) {
+      const id = url.split('/').pop();
+      return `${JSON_SERVER_URL}/products/${id}`;
+    }
+    // Para listar todos os produtos
+    return `${JSON_SERVER_URL}/products`;
   }
   
-  if (url.includes('/api/products/featured')) {
-    return '/.netlify/functions/getProducts';
-  }
-  
-  if (url.includes('/api/products/promotions')) {
-    return '/.netlify/functions/getProducts';
-  }
-  
-  // Para outros endpoints, fazer substituição padrão
-  return url.replace('/api/', '/.netlify/functions/');
+  // Caso genérico - remover /api/ e adicionar ao json-server
+  return `${JSON_SERVER_URL}/${url.replace('/api/', '')}`;
 }
 
 export async function apiRequest(
@@ -50,25 +69,25 @@ export async function apiRequest(
     ...(token ? { "Authorization": `Bearer ${token}` } : {})
   };
   
-  // Converter URL para usar funções Netlify
-  const netlifyUrl = getNetlifyFunctionUrl(url);
+  // Converter URL para usar o json-server
+  const jsonServerUrl = getJsonServerUrl(url);
   
-  console.log(`Enviando requisição ${method} para ${netlifyUrl}`, data);
+  console.log(`Enviando requisição ${method} para ${jsonServerUrl}`, data);
   
   try {
-    const res = await fetch(netlifyUrl, {
+    const res = await fetch(jsonServerUrl, {
       method,
       headers,
       body: data ? JSON.stringify(data) : undefined,
       cache: 'no-cache' // Evitar problemas de cache
     });
 
-    console.log(`Resposta da requisição ${method} para ${netlifyUrl}:`, res.status);
+    console.log(`Resposta da requisição ${method} para ${jsonServerUrl}:`, res.status);
     
     await throwIfResNotOk(res);
     return res;
   } catch (error) {
-    console.error(`Erro na requisição ${method} para ${netlifyUrl}:`, error);
+    console.error(`Erro na requisição ${method} para ${jsonServerUrl}:`, error);
     throw error;
   }
 }
@@ -89,14 +108,14 @@ export const getQueryFn: <T>(options: {
       ...(token ? { "Authorization": `Bearer ${token}` } : {})
     };
     
-    // Converter URL para usar funções Netlify
+    // Converter URL para usar json-server
     const url = queryKey[0] as string;
-    const netlifyUrl = getNetlifyFunctionUrl(url);
+    const jsonServerUrl = getJsonServerUrl(url);
     
     try {
-      console.log(`Iniciando requisição para ${netlifyUrl}`);
+      console.log(`Iniciando requisição para ${jsonServerUrl}`);
       
-      const res = await fetch(netlifyUrl, {
+      const res = await fetch(jsonServerUrl, {
         headers,
         cache: 'no-cache' // Desabilitar cache
       });
@@ -118,10 +137,10 @@ export const getQueryFn: <T>(options: {
       }
       
       const data = await res.json();
-      console.log(`Dados recebidos de ${netlifyUrl}:`, data);
+      console.log(`Dados recebidos de ${jsonServerUrl}:`, data);
       return data;
     } catch (error) {
-      console.error(`Erro ao buscar ${netlifyUrl}:`, error);
+      console.error(`Erro ao buscar ${jsonServerUrl}:`, error);
       
       // Retornar dados vazios em vez de lançar erro
       if (url.includes('categories')) return [];

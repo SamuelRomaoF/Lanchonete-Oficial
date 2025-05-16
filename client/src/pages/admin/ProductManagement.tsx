@@ -21,8 +21,11 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Pencil, Trash2, Search } from "lucide-react";
-import { Category, Product, insertProductSchema } from "@shared/schema";
+import { Plus, Pencil, Trash2, Search, UploadIcon, FileSpreadsheetIcon, InfoIcon } from "lucide-react";
+import { Category, Product, insertProductSchema, InsertProduct } from "@shared/schema";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import * as XLSX from 'xlsx';
+import { fetchApi } from "@/lib/fetchApi";
 
 // Esquema para o formulário de produto
 const productFormSchema = z.object({
@@ -52,6 +55,9 @@ const ProductManagement = () => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [currentProduct, setCurrentProduct] = useState<Product | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [previewData, setPreviewData] = useState<Partial<Product>[]>([]);
   
   // Verificar se o usuário é administrador
   useEffect(() => {
@@ -105,52 +111,17 @@ const ProductManagement = () => {
     }
   }, [currentProduct, isEditDialogOpen, form]);
   
-  // Mutation para criar produto
-  const createProductMutation = useMutation({
-    mutationFn: (data: ProductFormValues) => {
-      return apiRequest("POST", "/api/products", data);
+  // Mutation para adicionar produto
+  const addProductMutation = useMutation({
+    mutationFn: async (newProduct: InsertProduct) => {
+      return fetchApi('/products', {
+        method: 'POST',
+        body: JSON.stringify(newProduct),
+      });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/products'] });
-      toast({
-        title: "Produto criado",
-        description: "Produto criado com sucesso",
-      });
-      setIsCreateDialogOpen(false);
-      form.reset();
-    },
-    onError: (error) => {
-      console.error("Erro ao criar produto:", error);
-      toast({
-        title: "Erro",
-        description: "Erro ao criar produto. Tente novamente.",
-        variant: "destructive",
-      });
-    },
-  });
-  
-  // Mutation para atualizar produto
-  const updateProductMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: ProductFormValues }) => {
-      return apiRequest("PUT", `/api/products/${id}`, data);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/products'] });
-      toast({
-        title: "Produto atualizado",
-        description: "Produto atualizado com sucesso",
-      });
-      setIsEditDialogOpen(false);
-      setCurrentProduct(null);
-    },
-    onError: (error) => {
-      console.error("Erro ao atualizar produto:", error);
-      toast({
-        title: "Erro",
-        description: "Erro ao atualizar produto. Tente novamente.",
-        variant: "destructive",
-      });
-    },
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+    }
   });
   
   // Mutation para excluir produto
@@ -185,12 +156,12 @@ const ProductManagement = () => {
   
   // Funções de gerenciamento de produtos
   const handleCreateProduct = (data: ProductFormValues) => {
-    createProductMutation.mutate(data);
+    addProductMutation.mutate(data);
   };
   
   const handleEditProduct = (data: ProductFormValues) => {
     if (currentProduct) {
-      updateProductMutation.mutate({ id: currentProduct.id, data });
+      addProductMutation.mutate(data);
     }
   };
   
@@ -233,6 +204,196 @@ const ProductManagement = () => {
     return category ? category.name : "Desconhecida";
   };
   
+  // Função para lidar com a seleção de arquivo
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] || null;
+    setSelectedFile(file);
+    setPreviewData([]);
+    
+    if (file) {
+      // Processar o arquivo Excel
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = e.target?.result;
+          const workbook = XLSX.read(data, { type: 'binary' });
+          
+          // Verificar se existe uma aba de Produtos
+          const isProductsSheet = workbook.SheetNames.includes("Produtos");
+          
+          if (isProductsSheet) {
+            const worksheet = workbook.Sheets["Produtos"];
+            
+            // Converter para JSON
+            const jsonData = XLSX.utils.sheet_to_json<any>(worksheet);
+            
+            // Mapear os dados para o formato do produto
+            const products = jsonData.map((row, index) => ({
+              id: index + 1, // Temporário para preview
+              name: row.nome || row.name || '',
+              description: row.descricao || row.description || '',
+              price: parseFloat(row.preco || row.price || 0),
+              categoryId: parseInt(row.categoria_id || row.categoryId || 1),
+              imageUrl: row.imagem_url || row.imageUrl || '',
+              isFeatured: (row.destaque || row.isFeatured || '').toString().toLowerCase() === 'sim' || 
+                           (row.destaque || row.isFeatured || '').toString().toLowerCase() === 'true',
+              isPromotion: (row.promocao || row.isPromotion || '').toString().toLowerCase() === 'sim' || 
+                            (row.promocao || row.isPromotion || '').toString().toLowerCase() === 'true',
+              oldPrice: parseFloat(row.preco_antigo || row.oldPrice || 0) || undefined,
+              available: true
+            }));
+            
+            setPreviewData(products);
+            
+            toast({
+              title: "Arquivo processado",
+              description: `${products.length} produtos encontrados no arquivo.`,
+            });
+          } else {
+            // Se não encontrou a aba específica, tenta usar a primeira aba
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            
+            // Converter para JSON
+            const jsonData = XLSX.utils.sheet_to_json<any>(worksheet);
+            
+            // Verificar se os dados parecem ser de produtos (têm nome e preço)
+            const isProductData = jsonData.length > 0 && 
+              (jsonData[0].nome !== undefined || jsonData[0].name !== undefined) &&
+              (jsonData[0].preco !== undefined || jsonData[0].price !== undefined);
+            
+            if (isProductData) {
+              // Mapear os dados para o formato do produto
+              const products = jsonData.map((row, index) => ({
+                id: index + 1, // Temporário para preview
+                name: row.nome || row.name || '',
+                description: row.descricao || row.description || '',
+                price: parseFloat(row.preco || row.price || 0),
+                categoryId: parseInt(row.categoria_id || row.categoryId || 1),
+                imageUrl: row.imagem_url || row.imageUrl || '',
+                isFeatured: (row.destaque || row.isFeatured || '').toString().toLowerCase() === 'sim' || 
+                            (row.destaque || row.isFeatured || '').toString().toLowerCase() === 'true',
+                isPromotion: (row.promocao || row.isPromotion || '').toString().toLowerCase() === 'sim' || 
+                              (row.promocao || row.isPromotion || '').toString().toLowerCase() === 'true',
+                oldPrice: parseFloat(row.preco_antigo || row.oldPrice || 0) || undefined,
+                available: true
+              }));
+              
+              setPreviewData(products);
+              
+              toast({
+                title: "Arquivo processado",
+                description: `${products.length} produtos encontrados no arquivo.`,
+              });
+            } else {
+              toast({
+                title: "Formato incorreto",
+                description: "O arquivo não contém dados de produtos reconhecíveis. Verifique a estrutura do arquivo.",
+                variant: "destructive",
+              });
+            }
+          }
+        } catch (error) {
+          console.error("Erro ao processar arquivo:", error);
+          toast({
+            title: "Erro ao processar arquivo",
+            description: "O arquivo selecionado não está no formato esperado.",
+            variant: "destructive",
+          });
+        }
+      };
+      reader.readAsBinaryString(file);
+    }
+  };
+  
+  // Função para fazer upload do arquivo
+  const handleUpload = async () => {
+    if (!selectedFile) {
+      toast({
+        title: "Nenhum arquivo selecionado",
+        description: "Por favor, selecione um arquivo Excel para fazer upload.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (previewData.length === 0) {
+      toast({
+        title: "Nenhum produto encontrado",
+        description: "O arquivo não contém produtos válidos para importar.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setIsUploading(true);
+    
+    try {
+      // Processar cada produto
+      const promises = previewData.map(async (product) => {
+        try {
+          if (!product.name || !product.price || !product.categoryId) {
+            throw new Error("Dados obrigatórios faltando");
+          }
+          
+          await addProductMutation.mutateAsync({
+            name: product.name,
+            description: product.description || null,
+            price: product.price,
+            categoryId: product.categoryId,
+            imageUrl: product.imageUrl || null,
+            isFeatured: product.isFeatured || false,
+            isPromotion: product.isPromotion || false,
+            oldPrice: product.oldPrice || null,
+            available: true
+          });
+          
+          return true;
+        } catch (error) {
+          console.error(`Erro ao adicionar produto ${product.name}:`, error);
+          return false;
+        }
+      });
+      
+      // Executar todas as promessas
+      const results = await Promise.allSettled(promises);
+      
+      // Contar sucessos e falhas
+      const successCount = results.filter(r => r.status === 'fulfilled' && r.value === true).length;
+      const errorCount = results.length - successCount;
+      
+      toast({
+        title: "Upload concluído",
+        description: `${successCount} produtos importados com sucesso${errorCount > 0 ? `, ${errorCount} com falha` : ''}`,
+        variant: errorCount > 0 ? "destructive" : "default",
+      });
+      
+      // Limpar formulário após upload
+      setSelectedFile(null);
+      setPreviewData([]);
+    } catch (error) {
+      console.error("Erro ao fazer upload:", error);
+      toast({
+        title: "Erro no upload",
+        description: "Ocorreu um erro ao fazer o upload do arquivo. Tente novamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+  
+  // Usar o template compartilhado do CategoryManagement
+  const downloadTemplate = () => {
+    // Redirecionar para a página de categorias que tem o download do template completo
+    navigate("/admin/categorias");
+    
+    toast({
+      title: "Redirecionando",
+      description: "Você será redirecionado para a página de categorias para baixar o template completo.",
+    });
+  };
+  
   if (!user || user.type !== "admin") {
     return (
       <div className="container mx-auto px-4 py-8 text-center">
@@ -244,602 +405,119 @@ const ProductManagement = () => {
   
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-col space-y-8">
         <h1 className="text-2xl font-bold">Gerenciamento de Produtos</h1>
-        <Button onClick={openCreateDialog} className="bg-primary hover:bg-primary-dark">
-          <Plus className="mr-2 h-4 w-4" /> Novo Produto
-        </Button>
+        
+        <Card>
+          <CardHeader>
+            <CardTitle>Importar Produtos via Excel</CardTitle>
+            <CardDescription>
+              Faça o upload de um arquivo Excel (.xlsx) contendo seus produtos
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <Alert variant="default" className="bg-blue-50 border-blue-200">
+              <InfoIcon className="h-5 w-5 text-blue-500" />
+              <AlertTitle>Formato do Arquivo</AlertTitle>
+              <AlertDescription>
+                <p>Você pode fazer upload de um arquivo Excel com:</p>
+                <ul className="list-disc pl-5 mt-2">
+                  <li>Uma aba chamada "Produtos" com as colunas:</li>
+                  <ul className="list-circle pl-5 mt-1">
+                    <li>nome (obrigatório)</li>
+                    <li>descricao (opcional)</li>
+                    <li>preco (obrigatório)</li>
+                    <li>categoria_id (obrigatório) - relacionado ao ID da categoria</li>
+                    <li>imagem_url (opcional)</li>
+                    <li>destaque (sim/não, opcional)</li>
+                    <li>promocao (sim/não, opcional)</li>
+                    <li>preco_antigo (opcional)</li>
+                  </ul>
+                  <li className="mt-2">É recomendado primeiro importar categorias e depois produtos</li>
+                  <li className="mt-2">Clique em "Baixar Template" para obter o arquivo de exemplo completo</li>
+                </ul>
+              </AlertDescription>
+            </Alert>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+                  <input
+                    type="file"
+                    id="fileInput"
+                    accept=".xlsx, .xls, .csv"
+                    onChange={handleFileChange}
+                    className="hidden"
+                  />
+                  <label 
+                    htmlFor="fileInput"
+                    className="flex flex-col items-center justify-center cursor-pointer"
+                  >
+                    <UploadIcon className="h-12 w-12 text-gray-400 mb-4" />
+                    <p className="text-lg font-medium mb-2">
+                      {selectedFile ? selectedFile.name : "Clique para selecionar arquivo"}
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      Suporta arquivos .xlsx, .xls e .csv
+                    </p>
+                  </label>
+                </div>
+                
+                <div className="flex justify-between">
+                  <Button 
+                    variant="outline" 
+                    onClick={downloadTemplate}
+                    className="flex items-center gap-2"
+                  >
+                    <FileSpreadsheetIcon className="h-4 w-4" />
+                    Baixar Template
+                  </Button>
+                  
+                  <Button 
+                    disabled={!selectedFile || isUploading}
+                    onClick={handleUpload}
+                    className="bg-primary hover:bg-primary-dark"
+                  >
+                    {isUploading ? "Processando..." : "Importar Produtos"}
+                  </Button>
+                </div>
+              </div>
+              
+              <div>
+                <h3 className="text-lg font-medium mb-3">Pré-visualização</h3>
+                {previewData.length > 0 ? (
+                  <div className="border rounded-lg overflow-auto max-h-[400px]">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50 sticky top-0">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nome</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Preço</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Categoria</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {previewData.map((item) => (
+                          <tr key={item.id}>
+                            <td className="px-4 py-3 text-sm text-gray-900">{item.id}</td>
+                            <td className="px-4 py-3 text-sm text-gray-900">{item.name}</td>
+                            <td className="px-4 py-3 text-sm text-gray-900">R$ {item.price !== undefined ? item.price.toFixed(2) : '0.00'}</td>
+                            <td className="px-4 py-3 text-sm text-gray-900">{item.categoryId}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="border rounded-lg p-8 text-center text-gray-500">
+                    Selecione um arquivo para visualizar os dados
+                  </div>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
-      
-      <Card className="mb-6">
-        <CardContent className="pt-6">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-            <Input
-              placeholder="Buscar produtos..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-        </CardContent>
-      </Card>
-      
-      {productsLoading ? (
-        <div className="text-center py-8">
-          <div className="spinner h-8 w-8 mx-auto mb-4 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-          <p>Carregando produtos...</p>
-        </div>
-      ) : filteredProducts && filteredProducts.length > 0 ? (
-        <div className="rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nome</TableHead>
-                <TableHead>Categoria</TableHead>
-                <TableHead>Preço</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredProducts.map((product) => (
-                <TableRow key={product.id}>
-                  <TableCell className="font-medium">
-                    <div className="flex items-center space-x-3">
-                      {product.imageUrl && (
-                        <img 
-                          src={product.imageUrl} 
-                          alt={product.name} 
-                          className="h-10 w-10 rounded object-cover"
-                        />
-                      )}
-                      <div>
-                        {product.name}
-                        <div className="flex space-x-1 mt-1">
-                          {product.isFeatured && (
-                            <Badge variant="outline" className="text-xs bg-primary/10 text-primary border-primary/20">
-                              Destaque
-                            </Badge>
-                          )}
-                          {product.isPromotion && (
-                            <Badge variant="outline" className="text-xs bg-accent/10 text-accent-foreground border-accent/20">
-                              Promoção
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>{getCategoryName(product.categoryId)}</TableCell>
-                  <TableCell>
-                    <div>
-                      {formatCurrency(product.price)}
-                      {product.isPromotion && product.oldPrice && (
-                        <span className="text-sm text-muted-foreground line-through ml-2">
-                          {formatCurrency(product.oldPrice)}
-                        </span>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={product.available ? "default" : "secondary"} className={product.available ? "bg-green-500" : "bg-gray-500"}>
-                      {product.available ? "Disponível" : "Indisponível"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end space-x-2">
-                      <Button 
-                        variant="outline" 
-                        size="icon"
-                        onClick={() => openEditDialog(product)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button 
-                        variant="destructive" 
-                        size="icon"
-                        onClick={() => openDeleteDialog(product)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      ) : (
-        <div className="text-center py-12 bg-neutral-lightest rounded-lg">
-          <h3 className="text-lg font-medium mb-2">Nenhum produto encontrado</h3>
-          <p className="text-neutral mb-6">
-            {searchTerm ? "Não encontramos produtos com esse termo de busca" : "Você ainda não cadastrou nenhum produto"}
-          </p>
-          <Button onClick={openCreateDialog} className="bg-primary hover:bg-primary-dark">
-            Adicionar Produto
-          </Button>
-        </div>
-      )}
-      
-      {/* Dialog para criar produto */}
-      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle>Adicionar Produto</DialogTitle>
-            <DialogDescription>
-              Preencha os campos abaixo para adicionar um novo produto ao cardápio
-            </DialogDescription>
-          </DialogHeader>
-          
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleCreateProduct)} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Nome do produto*</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={form.control}
-                  name="categoryId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Categoria*</FormLabel>
-                      <Select 
-                        onValueChange={(value) => field.onChange(parseInt(value))}
-                        defaultValue={field.value?.toString()}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione uma categoria" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {categories?.map((category) => (
-                            <SelectItem 
-                              key={category.id} 
-                              value={category.id.toString()}
-                            >
-                              {category.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-              
-              <FormField
-                control={form.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Descrição</FormLabel>
-                    <FormControl>
-                      <Textarea {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="price"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Preço*</FormLabel>
-                      <FormControl>
-                        <Input 
-                          type="number" 
-                          step="0.01" 
-                          {...field} 
-                          value={field.value === 0 ? "" : field.value}
-                          onChange={(e) => {
-                            const value = e.target.value === "" ? 0 : parseFloat(e.target.value);
-                            field.onChange(value);
-                          }}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={form.control}
-                  name="oldPrice"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Preço antigo (promoção)</FormLabel>
-                      <FormControl>
-                        <Input 
-                          type="number" 
-                          step="0.01" 
-                          placeholder="Opcional" 
-                          {...field} 
-                          value={field.value === 0 ? "" : field.value || ""}
-                          onChange={(e) => {
-                            const value = e.target.value === "" ? undefined : parseFloat(e.target.value);
-                            field.onChange(value);
-                          }}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-              
-              <FormField
-                control={form.control}
-                name="imageUrl"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>URL da imagem</FormLabel>
-                    <FormControl>
-                      <Input placeholder="https://..." {...field} />
-                    </FormControl>
-                    <FormDescription>
-                      URL da imagem do produto (recomendado: 800x500px)
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <FormField
-                  control={form.control}
-                  name="isFeatured"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
-                      <div className="space-y-0.5">
-                        <FormLabel>Destacado</FormLabel>
-                        <FormDescription>
-                          Mostrar na página inicial
-                        </FormDescription>
-                      </div>
-                      <FormControl>
-                        <Switch
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={form.control}
-                  name="isPromotion"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
-                      <div className="space-y-0.5">
-                        <FormLabel>Promoção</FormLabel>
-                        <FormDescription>
-                          Produto em promoção
-                        </FormDescription>
-                      </div>
-                      <FormControl>
-                        <Switch
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={form.control}
-                  name="available"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
-                      <div className="space-y-0.5">
-                        <FormLabel>Disponível</FormLabel>
-                        <FormDescription>
-                          Produto disponível para venda
-                        </FormDescription>
-                      </div>
-                      <FormControl>
-                        <Switch
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-              </div>
-              
-              <DialogFooter>
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  onClick={() => setIsCreateDialogOpen(false)}
-                >
-                  Cancelar
-                </Button>
-                <Button 
-                  type="submit"
-                  className="bg-primary hover:bg-primary-dark"
-                  disabled={createProductMutation.isPending}
-                >
-                  {createProductMutation.isPending ? "Salvando..." : "Salvar Produto"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
-      
-      {/* Dialog para editar produto */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle>Editar Produto</DialogTitle>
-            <DialogDescription>
-              Atualize as informações do produto
-            </DialogDescription>
-          </DialogHeader>
-          
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleEditProduct)} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Nome do produto*</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={form.control}
-                  name="categoryId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Categoria*</FormLabel>
-                      <Select 
-                        onValueChange={(value) => field.onChange(parseInt(value))}
-                        defaultValue={field.value?.toString()}
-                        value={field.value?.toString()}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione uma categoria" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {categories?.map((category) => (
-                            <SelectItem 
-                              key={category.id} 
-                              value={category.id.toString()}
-                            >
-                              {category.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-              
-              <FormField
-                control={form.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Descrição</FormLabel>
-                    <FormControl>
-                      <Textarea {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="price"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Preço*</FormLabel>
-                      <FormControl>
-                        <Input 
-                          type="number" 
-                          step="0.01" 
-                          {...field} 
-                          value={field.value === 0 ? "" : field.value}
-                          onChange={(e) => {
-                            const value = e.target.value === "" ? 0 : parseFloat(e.target.value);
-                            field.onChange(value);
-                          }}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={form.control}
-                  name="oldPrice"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Preço antigo (promoção)</FormLabel>
-                      <FormControl>
-                        <Input 
-                          type="number" 
-                          step="0.01" 
-                          placeholder="Opcional" 
-                          {...field} 
-                          value={field.value === 0 ? "" : field.value || ""}
-                          onChange={(e) => {
-                            const value = e.target.value === "" ? undefined : parseFloat(e.target.value);
-                            field.onChange(value);
-                          }}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-              
-              <FormField
-                control={form.control}
-                name="imageUrl"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>URL da imagem</FormLabel>
-                    <FormControl>
-                      <Input placeholder="https://..." {...field} />
-                    </FormControl>
-                    <FormDescription>
-                      URL da imagem do produto (recomendado: 800x500px)
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <FormField
-                  control={form.control}
-                  name="isFeatured"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
-                      <div className="space-y-0.5">
-                        <FormLabel>Destacado</FormLabel>
-                        <FormDescription>
-                          Mostrar na página inicial
-                        </FormDescription>
-                      </div>
-                      <FormControl>
-                        <Switch
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={form.control}
-                  name="isPromotion"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
-                      <div className="space-y-0.5">
-                        <FormLabel>Promoção</FormLabel>
-                        <FormDescription>
-                          Produto em promoção
-                        </FormDescription>
-                      </div>
-                      <FormControl>
-                        <Switch
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={form.control}
-                  name="available"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
-                      <div className="space-y-0.5">
-                        <FormLabel>Disponível</FormLabel>
-                        <FormDescription>
-                          Produto disponível para venda
-                        </FormDescription>
-                      </div>
-                      <FormControl>
-                        <Switch
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-              </div>
-              
-              <DialogFooter>
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  onClick={() => setIsEditDialogOpen(false)}
-                >
-                  Cancelar
-                </Button>
-                <Button 
-                  type="submit"
-                  className="bg-primary hover:bg-primary-dark"
-                  disabled={updateProductMutation.isPending}
-                >
-                  {updateProductMutation.isPending ? "Salvando..." : "Atualizar Produto"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
-      
-      {/* Dialog para confirmar exclusão */}
-      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Confirmar exclusão</DialogTitle>
-            <DialogDescription>
-              Tem certeza que deseja excluir o produto "{currentProduct?.name}"? Esta ação não pode ser desfeita.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => setIsDeleteDialogOpen(false)}
-            >
-              Cancelar
-            </Button>
-            <Button 
-              variant="destructive" 
-              onClick={handleDeleteProduct}
-              disabled={deleteProductMutation.isPending}
-            >
-              {deleteProductMutation.isPending ? "Excluindo..." : "Excluir Produto"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };

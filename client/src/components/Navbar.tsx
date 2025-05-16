@@ -43,11 +43,8 @@ const Navbar = () => {
           <Link href="/admin" className="hover:text-primary transition-colors py-2 px-3">
             Dashboard
           </Link>
-          <Link href="/admin/categorias" className="hover:text-primary transition-colors py-2 px-3">
-            Categorias
-          </Link>
-          <Link href="/admin/produtos" className="hover:text-primary transition-colors py-2 px-3">
-            Produtos
+          <Link href="/admin/importar" className="hover:text-primary transition-colors py-2 px-3">
+            Importar Dados
           </Link>
           <Link href="/" className="hover:text-primary transition-colors py-2 px-3">
             Início
@@ -94,11 +91,8 @@ const Navbar = () => {
           <Link href="/admin" className="hover:bg-gray-100 block px-3 py-2 rounded-md text-base font-medium">
             Dashboard
           </Link>
-          <Link href="/admin/categorias" className="hover:bg-gray-100 block px-3 py-2 rounded-md text-base font-medium">
-            Categorias
-          </Link>
-          <Link href="/admin/produtos" className="hover:bg-gray-100 block px-3 py-2 rounded-md text-base font-medium">
-            Produtos
+          <Link href="/admin/importar" className="hover:bg-gray-100 block px-3 py-2 rounded-md text-base font-medium">
+            Importar Dados
           </Link>
           <Link href="/" className="hover:bg-gray-100 block px-3 py-2 rounded-md text-base font-medium">
             Início

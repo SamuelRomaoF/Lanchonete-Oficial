@@ -1,0 +1,85 @@
+{
+  "categories": [
+    {
+      "id": 1,
+      "name": "Lanches",
+      "description": "Hambúrgueres e sanduíches",
+      "imageUrl": "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?q=80&w=300"
+    },
+    {
+      "id": 2,
+      "name": "Bebidas",
+      "description": "Refrigerantes, sucos e milkshakes",
+      "imageUrl": "https://images.unsplash.com/photo-1544145945-f90425340c7e?q=80&w=300"
+    },
+    {
+      "id": 3,
+      "name": "Combos",
+      "description": "Combinações com desconto",
+      "imageUrl": "https://images.unsplash.com/photo-1594212699903-ec8a3eca50f5?q=80&w=300"
+    }
+  ],
+  "products": [
+    {
+      "id": 1,
+      "name": "X-Burger",
+      "description": "Hambúrguer com queijo, alface e tomate",
+      "price": 18.9,
+      "categoryId": 1,
+      "imageUrl": "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?q=80&w=300",
+      "available": true,
+      "isFeatured": true
+    },
+    {
+      "id": 2,
+      "name": "X-Bacon",
+      "description": "Hambúrguer com queijo, bacon, alface e tomate",
+      "price": 22.9,
+      "oldPrice": 25.9,
+      "categoryId": 1,
+      "imageUrl": "https://images.unsplash.com/photo-1553979459-d2229ba7433b?q=80&w=300",
+      "available": true,
+      "isPromotion": true
+    },
+    {
+      "id": 3,
+      "name": "Coca-Cola 350ml",
+      "description": "Refrigerante Coca-Cola lata 350ml",
+      "price": 6.5,
+      "categoryId": 2,
+      "imageUrl": "https://images.unsplash.com/photo-1554866585-cd94860890b7?q=80&w=300",
+      "available": true
+    },
+    {
+      "id": 4,
+      "name": "Água Mineral 500ml",
+      "description": "Água mineral sem gás 500ml",
+      "price": 4.0,
+      "categoryId": 2,
+      "imageUrl": "https://images.unsplash.com/photo-1548839140-29a749e1cf4d?q=80&w=300",
+      "available": true
+    },
+    {
+      "id": 5,
+      "name": "Pudim",
+      "description": "Pudim de leite condensado",
+      "price": 8.9,
+      "categoryId": 3,
+      "imageUrl": "https://images.unsplash.com/photo-1590080876208-786412d8d4ad?q=80&w=300",
+      "available": true,
+      "isFeatured": true
+    },
+    {
+      "id": 6,
+      "name": "Combo Estudante",
+      "description": "X-Burger + Batata Frita + Refrigerante",
+      "price": 28.9,
+      "oldPrice": 32.9,
+      "categoryId": 3,
+      "imageUrl": "https://images.unsplash.com/photo-1594212699903-ec8a3eca50f5?q=80&w=300",
+      "available": true,
+      "isPromotion": true,
+      "isFeatured": true
+    }
+  ]
+} 

@@ -1,42 +1,39 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
 import { useLocation } from "wouter";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Card, CardContent } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Pencil, Trash2, Search } from "lucide-react";
-import { Category, insertCategorySchema } from "@shared/schema";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { UploadIcon, FileSpreadsheetIcon, InfoIcon } from "lucide-react";
+import { Category, InsertCategory } from "@shared/schema";
+import * as XLSX from 'xlsx';
+import { fetchApi } from "@/lib/fetchApi";
 
-// Esquema para o formulário de categoria
-const categoryFormSchema = z.object({
-  name: z.string().min(3, "Nome deve ter pelo menos 3 caracteres"),
-  description: z.string().optional(),
-  imageUrl: z.string().optional(),
-});
-
-type CategoryFormValues = z.infer<typeof categoryFormSchema>;
-
+// Componente para importação de categorias via Excel
 const CategoryManagement = () => {
   const { user } = useAuth();
   const [location, navigate] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [currentCategory, setCurrentCategory] = useState<Category | null>(null);
-  const [searchTerm, setSearchTerm] = useState("");
+  // Mutation para adicionar categoria
+  const addCategoryMutation = useMutation({
+    mutationFn: async (newCategory: InsertCategory) => {
+      return fetchApi('/categories', {
+        method: 'POST',
+        body: JSON.stringify(newCategory),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
+    }
+  });
+  
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [previewData, setPreviewData] = useState<Partial<Category>[]>([]);
   
   // Verificar se o usuário é administrador
   if (user && user.type !== "admin") {
@@ -44,448 +41,365 @@ const CategoryManagement = () => {
     return null;
   }
   
-  // Buscar categorias
-  const { data: categories, isLoading: categoriesLoading } = useQuery<Category[]>({
-    queryKey: ['/api/categories'],
-    enabled: !!user && user.type === "admin",
-  });
-  
-  // Formulário para adicionar/editar categoria
-  const form = useForm<CategoryFormValues>({
-    resolver: zodResolver(categoryFormSchema),
-    defaultValues: {
-      name: "",
-      description: "",
-      imageUrl: "",
-    },
-  });
-  
-  // Mutation para criar categoria
-  const createCategoryMutation = useMutation({
-    mutationFn: async (data: CategoryFormValues) => {
-      console.log("Enviando dados para criar categoria:", data);
-      const response = await apiRequest("POST", "/api/categories", data);
-      const result = await response.json();
-      console.log("Resposta da criação de categoria:", result);
-      return result;
-    },
-    onSuccess: (data) => {
-      console.log("Mutation concluída com sucesso:", data);
-      queryClient.invalidateQueries({ queryKey: ['/api/categories'] });
-      toast({
-        title: "Categoria criada",
-        description: "Categoria criada com sucesso",
-      });
-      setIsCreateDialogOpen(false);
-      form.reset();
-    },
-    onError: (error) => {
-      console.error("Erro ao criar categoria:", error);
-      toast({
-        title: "Erro",
-        description: "Erro ao criar categoria. Tente novamente.",
-        variant: "destructive",
-      });
-    },
-  });
-  
-  // Mutation para atualizar categoria
-  const updateCategoryMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: number; data: CategoryFormValues }) => {
-      console.log(`Atualizando categoria ${id}:`, data);
-      const response = await apiRequest("PUT", `/api/categories/${id}`, data);
-      const result = await response.json();
-      console.log("Resposta da atualização de categoria:", result);
-      return result;
-    },
-    onSuccess: (data) => {
-      console.log("Atualização concluída com sucesso:", data);
-      queryClient.invalidateQueries({ queryKey: ['/api/categories'] });
-      toast({
-        title: "Categoria atualizada",
-        description: "Categoria atualizada com sucesso",
-      });
-      setIsEditDialogOpen(false);
-      setCurrentCategory(null);
-    },
-    onError: (error) => {
-      console.error("Erro ao atualizar categoria:", error);
-      toast({
-        title: "Erro",
-        description: "Erro ao atualizar categoria. Tente novamente.",
-        variant: "destructive",
-      });
-    },
-  });
-  
-  // Mutation para excluir categoria
-  const deleteCategoryMutation = useMutation({
-    mutationFn: async (id: number) => {
-      console.log(`Excluindo categoria ${id}`);
-      const response = await apiRequest("DELETE", `/api/categories/${id}`, {});
-      const result = await response.json();
-      console.log("Resposta da exclusão de categoria:", result);
-      return result;
-    },
-    onSuccess: (data) => {
-      console.log("Exclusão concluída com sucesso:", data);
-      queryClient.invalidateQueries({ queryKey: ['/api/categories'] });
-      toast({
-        title: "Categoria excluída",
-        description: "Categoria excluída com sucesso",
-      });
-      setIsDeleteDialogOpen(false);
-      setCurrentCategory(null);
-    },
-    onError: (error) => {
-      console.error("Erro ao excluir categoria:", error);
-      toast({
-        title: "Erro",
-        description: "Erro ao excluir categoria. Tente novamente.",
-        variant: "destructive",
-      });
-    },
-  });
-  
-  // Filtragem de categorias
-  const filteredCategories = categories?.filter((category) => 
-    category.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (category.description && category.description.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
-  
-  // Funções de gerenciamento de categorias
-  const handleCreateCategory = (data: CategoryFormValues) => {
-    console.log("Iniciando criação de categoria:", data);
-    createCategoryMutation.mutate(data);
-  };
-  
-  const handleEditCategory = (data: CategoryFormValues) => {
-    if (currentCategory) {
-      console.log("Iniciando edição de categoria:", currentCategory.id, data);
-      updateCategoryMutation.mutate({ id: currentCategory.id, data });
+  // Função para lidar com a seleção de arquivo
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] || null;
+    setSelectedFile(file);
+    setPreviewData([]);
+    
+    if (file) {
+      // Processar o arquivo Excel
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = e.target?.result;
+          const workbook = XLSX.read(data, { type: 'binary' });
+          
+          // Verificar se existe uma aba de Categorias
+          const isCategoriesSheet = workbook.SheetNames.includes("Categorias");
+          
+          if (isCategoriesSheet) {
+            const worksheet = workbook.Sheets["Categorias"];
+            
+            // Converter para JSON
+            const jsonData = XLSX.utils.sheet_to_json<any>(worksheet);
+            
+            // Mapear os dados para o formato da categoria
+            const categories = jsonData.map((row, index) => ({
+              id: index + 1, // Temporário para preview
+              name: row.nome || row.name || '',
+              description: row.descricao || row.description || '',
+              imageUrl: row.imagem_url || row.imageUrl || ''
+            }));
+            
+            setPreviewData(categories);
+            
+            toast({
+              title: "Arquivo processado",
+              description: `${categories.length} categorias encontradas no arquivo.`,
+            });
+          } else {
+            // Se não encontrou a aba específica, tenta usar a primeira aba
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            
+            // Converter para JSON
+            const jsonData = XLSX.utils.sheet_to_json<any>(worksheet);
+            
+            // Verificar se os dados parecem ser de categorias (têm nome, mas não têm preço)
+            const isCategoryData = jsonData.length > 0 && 
+              (jsonData[0].nome !== undefined || jsonData[0].name !== undefined) &&
+              jsonData[0].preco === undefined && 
+              jsonData[0].price === undefined;
+            
+            if (isCategoryData) {
+              // Mapear os dados para o formato da categoria
+              const categories = jsonData.map((row, index) => ({
+                id: index + 1, // Temporário para preview
+                name: row.nome || row.name || '',
+                description: row.descricao || row.description || '',
+                imageUrl: row.imagem_url || row.imageUrl || ''
+              }));
+              
+              setPreviewData(categories);
+              
+              toast({
+                title: "Arquivo processado",
+                description: `${categories.length} categorias encontradas no arquivo.`,
+              });
+            } else {
+              toast({
+                title: "Formato incorreto",
+                description: "O arquivo não contém dados de categorias reconhecíveis. Verifique a estrutura do arquivo.",
+                variant: "destructive",
+              });
+            }
+          }
+        } catch (error) {
+          console.error("Erro ao processar arquivo:", error);
+          toast({
+            title: "Erro ao processar arquivo",
+            description: "O arquivo selecionado não está no formato esperado.",
+            variant: "destructive",
+          });
+        }
+      };
+      reader.readAsBinaryString(file);
     }
   };
   
-  const handleDeleteCategory = () => {
-    if (currentCategory) {
-      console.log("Iniciando exclusão de categoria:", currentCategory.id);
-      deleteCategoryMutation.mutate(currentCategory.id);
+  // Função para fazer upload do arquivo
+  const handleUpload = async () => {
+    if (!selectedFile) {
+      toast({
+        title: "Nenhum arquivo selecionado",
+        description: "Por favor, selecione um arquivo Excel para fazer upload.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (previewData.length === 0) {
+      toast({
+        title: "Nenhuma categoria encontrada",
+        description: "O arquivo não contém categorias válidas para importar.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setIsUploading(true);
+    
+    try {
+      // Processar cada categoria
+      const promises = previewData.map(async (category) => {
+        try {
+          if (!category.name) {
+            throw new Error("Nome da categoria é obrigatório");
+          }
+          
+          await addCategoryMutation.mutateAsync({
+            name: category.name,
+            description: category.description || null,
+            imageUrl: category.imageUrl || null
+          });
+          
+          return true;
+        } catch (error) {
+          console.error(`Erro ao adicionar categoria ${category.name}:`, error);
+          return false;
+        }
+      });
+      
+      // Executar todas as promessas
+      const results = await Promise.allSettled(promises);
+      
+      // Contar sucessos e falhas
+      const successCount = results.filter(r => r.status === 'fulfilled' && r.value === true).length;
+      const errorCount = results.length - successCount;
+      
+      toast({
+        title: "Upload concluído",
+        description: `${successCount} categorias importadas com sucesso${errorCount > 0 ? `, ${errorCount} com falha` : ''}`,
+        variant: errorCount > 0 ? "destructive" : "default",
+      });
+      
+      // Limpar formulário após upload
+      setSelectedFile(null);
+      setPreviewData([]);
+    } catch (error) {
+      console.error("Erro ao fazer upload:", error);
+      toast({
+        title: "Erro no upload",
+        description: "Ocorreu um erro ao fazer o upload do arquivo. Tente novamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
     }
   };
   
-  // Funções para abrir modais
-  const openCreateDialog = () => {
-    form.reset({
-      name: "",
-      description: "",
-      imageUrl: "",
+  // Baixar template de exemplo
+  const downloadTemplate = () => {
+    // Criar dados de exemplo para categorias
+    const categoriesData = [
+      { 
+        nome: "Lanches", 
+        descricao: "Hambúrgueres e sanduíches", 
+        imagem_url: "https://example.com/lanches.jpg"
+      },
+      { 
+        nome: "Bebidas", 
+        descricao: "Refrigerantes, sucos e milk-shakes", 
+        imagem_url: "https://example.com/bebidas.jpg"
+      },
+      { 
+        nome: "Sobremesas", 
+        descricao: "Doces e sobremesas", 
+        imagem_url: "https://example.com/sobremesas.jpg"
+      }
+    ];
+    
+    // Criar dados de exemplo para produtos
+    const productsData = [
+      { 
+        nome: "X-Burger", 
+        descricao: "Hambúrguer com queijo", 
+        preco: 18.90, 
+        categoria_id: 1,
+        imagem_url: "https://example.com/x-burger.jpg",
+        destaque: "sim",
+        promocao: "não",
+        preco_antigo: 22.00
+      },
+      { 
+        nome: "X-Bacon", 
+        descricao: "Hambúrguer com bacon e queijo", 
+        preco: 22.90, 
+        categoria_id: 1,
+        imagem_url: "https://example.com/x-bacon.jpg",
+        destaque: "não",
+        promocao: "sim",
+        preco_antigo: 25.90
+      },
+      { 
+        nome: "Refrigerante Cola", 
+        descricao: "Lata 350ml", 
+        preco: 5.00, 
+        categoria_id: 2,
+        imagem_url: "https://example.com/refrigerante.jpg",
+        destaque: "não",
+        promocao: "não"
+      },
+      { 
+        nome: "Milk Shake", 
+        descricao: "Chocolate 400ml", 
+        preco: 12.00, 
+        categoria_id: 2,
+        imagem_url: "https://example.com/milkshake.jpg",
+        destaque: "sim",
+        promocao: "não"
+      }
+    ];
+    
+    // Criar planilha com duas abas
+    const workbook = XLSX.utils.book_new();
+    
+    // Adicionar aba de categorias
+    const categoriesSheet = XLSX.utils.json_to_sheet(categoriesData);
+    XLSX.utils.book_append_sheet(workbook, categoriesSheet, "Categorias");
+    
+    // Adicionar aba de produtos
+    const productsSheet = XLSX.utils.json_to_sheet(productsData);
+    XLSX.utils.book_append_sheet(workbook, productsSheet, "Produtos");
+    
+    // Gerar o arquivo e fazer download
+    XLSX.writeFile(workbook, "template_completo.xlsx");
+    
+    toast({
+      title: "Template baixado",
+      description: "O template com abas para categorias e produtos foi baixado para sua pasta de downloads.",
     });
-    setIsCreateDialogOpen(true);
   };
-  
-  const openEditDialog = (category: Category) => {
-    form.reset({
-      name: category.name,
-      description: category.description || "",
-      imageUrl: category.imageUrl || "",
-    });
-    setCurrentCategory(category);
-    setIsEditDialogOpen(true);
-  };
-  
-  const openDeleteDialog = (category: Category) => {
-    setCurrentCategory(category);
-    setIsDeleteDialogOpen(true);
-  };
-  
-  if (!user || user.type !== "admin") {
-    return (
-      <div className="container mx-auto px-4 py-8 text-center">
-        <h1 className="text-2xl font-bold mb-4">Acesso Restrito</h1>
-        <p>Esta área é restrita a administradores.</p>
-      </div>
-    );
-  }
   
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-col space-y-8">
         <h1 className="text-2xl font-bold">Gerenciamento de Categorias</h1>
-        <Button onClick={openCreateDialog} className="bg-primary hover:bg-primary-dark">
-          <Plus className="mr-2 h-4 w-4" /> Nova Categoria
-        </Button>
+        
+        <Card>
+          <CardHeader>
+            <CardTitle>Importar Categorias via Excel</CardTitle>
+            <CardDescription>
+              Faça o upload de um arquivo Excel (.xlsx) contendo suas categorias
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <Alert variant="default" className="bg-blue-50 border-blue-200">
+              <InfoIcon className="h-5 w-5 text-blue-500" />
+              <AlertTitle>Formato do Arquivo</AlertTitle>
+              <AlertDescription>
+                <p>Você pode fazer upload de um arquivo Excel com:</p>
+                <ul className="list-disc pl-5 mt-2">
+                  <li>Uma aba chamada "Categorias" com as colunas:</li>
+                  <ul className="list-circle pl-5 mt-1">
+                    <li>nome (obrigatório)</li>
+                    <li>descricao (opcional)</li>
+                    <li>imagem_url (opcional)</li>
+                  </ul>
+                  <li className="mt-2">E uma aba "Produtos" com as colunas:</li>
+                  <ul className="list-circle pl-5 mt-1">
+                    <li>nome (obrigatório)</li>
+                    <li>descricao (opcional)</li>
+                    <li>preco (obrigatório)</li>
+                    <li>categoria_id (obrigatório) - relacionado ao ID da categoria</li>
+                    <li>imagem_url (opcional)</li>
+                    <li>destaque (sim/não, opcional)</li>
+                    <li>promocao (sim/não, opcional)</li>
+                    <li>preco_antigo (opcional)</li>
+                  </ul>
+                  <li className="mt-2">Clique em "Baixar Template" para um exemplo completo</li>
+                </ul>
+              </AlertDescription>
+            </Alert>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+                  <input
+                    type="file"
+                    id="fileInput"
+                    accept=".xlsx, .xls, .csv"
+                    onChange={handleFileChange}
+                    className="hidden"
+                  />
+                  <label 
+                    htmlFor="fileInput"
+                    className="flex flex-col items-center justify-center cursor-pointer"
+                  >
+                    <UploadIcon className="h-12 w-12 text-gray-400 mb-4" />
+                    <p className="text-lg font-medium mb-2">
+                      {selectedFile ? selectedFile.name : "Clique para selecionar arquivo"}
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      Suporta arquivos .xlsx, .xls e .csv
+                    </p>
+                  </label>
+                </div>
+                
+                <div className="flex justify-between">
+                  <Button 
+                    variant="outline" 
+                    onClick={downloadTemplate}
+                    className="flex items-center gap-2"
+                  >
+                    <FileSpreadsheetIcon className="h-4 w-4" />
+                    Baixar Template
+                  </Button>
+                  
+                  <Button 
+                    disabled={!selectedFile || isUploading}
+                    onClick={handleUpload}
+                    className="bg-primary hover:bg-primary-dark"
+                  >
+                    {isUploading ? "Processando..." : "Importar Categorias"}
+                  </Button>
+                </div>
+              </div>
+              
+              <div>
+                <h3 className="text-lg font-medium mb-3">Pré-visualização</h3>
+                {previewData.length > 0 ? (
+                  <div className="border rounded-lg overflow-auto max-h-[400px]">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50 sticky top-0">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nome</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Descrição</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {previewData.map((item) => (
+                          <tr key={item.id}>
+                            <td className="px-4 py-3 text-sm text-gray-900">{item.id}</td>
+                            <td className="px-4 py-3 text-sm text-gray-900">{item.name}</td>
+                            <td className="px-4 py-3 text-sm text-gray-900">{item.description || '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="border rounded-lg p-8 text-center text-gray-500">
+                    Selecione um arquivo para visualizar os dados
+                  </div>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
-      
-      <Card className="mb-6">
-        <CardContent className="pt-6">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-            <Input
-              placeholder="Buscar categorias..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-        </CardContent>
-      </Card>
-      
-      {categoriesLoading ? (
-        <div className="text-center py-8">
-          <div className="spinner h-8 w-8 mx-auto mb-4 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-          <p>Carregando categorias...</p>
-        </div>
-      ) : filteredCategories && filteredCategories.length > 0 ? (
-        <div className="rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nome</TableHead>
-                <TableHead>Descrição</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredCategories.map((category) => (
-                <TableRow key={category.id}>
-                  <TableCell className="font-medium">
-                    <div className="flex items-center space-x-3">
-                      {category.imageUrl && (
-                        <img 
-                          src={category.imageUrl} 
-                          alt={category.name} 
-                          className="h-10 w-10 rounded object-cover"
-                        />
-                      )}
-                      <div>
-                        {category.name}
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>{category.description}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end space-x-2">
-                      <Button 
-                        variant="outline" 
-                        size="icon"
-                        onClick={() => openEditDialog(category)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button 
-                        variant="destructive" 
-                        size="icon"
-                        onClick={() => openDeleteDialog(category)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      ) : (
-        <div className="text-center py-12 bg-neutral-lightest rounded-lg">
-          <h3 className="text-lg font-medium mb-2">Nenhuma categoria encontrada</h3>
-          <p className="text-neutral mb-6">
-            {searchTerm ? "Não encontramos categorias com esse termo de busca" : "Você ainda não cadastrou nenhuma categoria"}
-          </p>
-          <Button onClick={openCreateDialog} className="bg-primary hover:bg-primary-dark">
-            Adicionar Categoria
-          </Button>
-        </div>
-      )}
-      
-      {/* Dialog para criar categoria */}
-      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>Adicionar Categoria</DialogTitle>
-            <DialogDescription>
-              Preencha os campos abaixo para adicionar uma nova categoria ao cardápio
-            </DialogDescription>
-          </DialogHeader>
-          
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleCreateCategory)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Nome da categoria*</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={form.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Descrição</FormLabel>
-                    <FormControl>
-                      <Textarea {...field} />
-                    </FormControl>
-                    <FormDescription>
-                      Uma breve descrição da categoria
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={form.control}
-                name="imageUrl"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>URL da Imagem</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormDescription>
-                      URL de uma imagem representativa para a categoria
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <DialogFooter>
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  onClick={() => setIsCreateDialogOpen(false)}
-                >
-                  Cancelar
-                </Button>
-                <Button type="submit" disabled={createCategoryMutation.isPending}>
-                  {createCategoryMutation.isPending ? "Salvando..." : "Salvar"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
-      
-      {/* Dialog para editar categoria */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>Editar Categoria</DialogTitle>
-            <DialogDescription>
-              Edite os campos abaixo para atualizar a categoria
-            </DialogDescription>
-          </DialogHeader>
-          
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleEditCategory)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Nome da categoria*</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={form.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Descrição</FormLabel>
-                    <FormControl>
-                      <Textarea {...field} />
-                    </FormControl>
-                    <FormDescription>
-                      Uma breve descrição da categoria
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={form.control}
-                name="imageUrl"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>URL da Imagem</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormDescription>
-                      URL de uma imagem representativa para a categoria
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <DialogFooter>
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  onClick={() => setIsEditDialogOpen(false)}
-                >
-                  Cancelar
-                </Button>
-                <Button type="submit" disabled={updateCategoryMutation.isPending}>
-                  {updateCategoryMutation.isPending ? "Salvando..." : "Salvar"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
-      
-      {/* Dialog para excluir categoria */}
-      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Excluir Categoria</DialogTitle>
-            <DialogDescription>
-              Tem certeza que deseja excluir esta categoria? Esta ação não pode ser desfeita.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4">
-            <p className="font-medium">{currentCategory?.name}</p>
-            {currentCategory?.description && (
-              <p className="text-sm text-muted-foreground mt-1">{currentCategory.description}</p>
-            )}
-          </div>
-          <DialogFooter>
-            <Button 
-              type="button" 
-              variant="outline" 
-              onClick={() => setIsDeleteDialogOpen(false)}
-            >
-              Cancelar
-            </Button>
-            <Button 
-              type="button" 
-              variant="destructive"
-              onClick={handleDeleteCategory}
-              disabled={deleteCategoryMutation.isPending}
-            >
-              {deleteCategoryMutation.isPending ? "Excluindo..." : "Excluir"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };
